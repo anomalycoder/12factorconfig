@@ -20,8 +20,9 @@ def coerce_type(key, value):
     if key == "debug":
         return str(value).lower() in ["true", "1", "yes", "on"]
     return str(value)
-
+@app.get("/")
 @app.get("/effective-config")
+@app.get("/api/effective-config")
 async def effective_config(set: list[str] = []):
     # 1. Defaults
     config = {
