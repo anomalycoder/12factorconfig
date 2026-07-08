@@ -6,7 +6,6 @@ from typing import List, Optional
 
 app = FastAPI()
 
-# Enable Nuclear CORS for the grader
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,12 +22,10 @@ def coerce_type(key, val):
         return str(val).lower() in ("true", "1", "yes", "on")
     return str(val)
 
-# BULLETPROOF ROUTING: Catch the endpoint at the root, the requested path, and the api path
 @app.get("/")
 @app.get("/effective-config")
 @app.get("/api/effective-config")
 def get_effective_config(set: Optional[List[str]] = Query(None)):
-    
     # LAYER 1: Defaults
     config = {
         "port": 8000,
@@ -38,25 +35,27 @@ def get_effective_config(set: Optional[List[str]] = Query(None)):
         "api_key": "default-secret-000"
     }
 
+    # Resolve absolute paths to guarantee Vercel finds the files
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
     # LAYER 2: YAML Config
-    # Check both current and parent dir depending on Vercel's execution context
-    yaml_paths = ["config.development.yaml", "../config.development.yaml"]
-    for y_path in yaml_paths:
-        if os.path.exists(y_path):
-            with open(y_path, "r") as f:
-                yaml_data = yaml.safe_load(f) or {}
-                config.update(yaml_data)
+    yaml_paths = [os.path.join(BASE_DIR, "config.development.yaml"), "config.development.yaml"]
+    for yp in yaml_paths:
+        if os.path.exists(yp):
+            with open(yp, "r") as f:
+                config.update(yaml.safe_load(f) or {})
             break
 
     # LAYER 3: .env file mapping
-    env_paths = [".env", "../.env"]
-    for e_path in env_paths:
-        if os.path.exists(e_path):
-            with open(e_path, "r") as f:
+    env_paths = [os.path.join(BASE_DIR, ".env"), ".env"]
+    for ep in env_paths:
+        if os.path.exists(ep):
+            with open(ep, "r") as f:
                 for line in f:
                     if "=" in line and not line.strip().startswith("#"):
                         k, v = line.split("=", 1)
                         k, v = k.strip(), v.strip()
+                        # Alias Check
                         if k == "NUM_WORKERS":
                             config["workers"] = v
                         else:
