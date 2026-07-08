@@ -4,7 +4,6 @@ import os
 
 app = FastAPI()
 
-# Enable CORS for all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,7 +13,6 @@ app.add_middleware(
 )
 
 def coerce_type(key, value):
-    """Applies type coercion rules as per requirements."""
     if value is None: return None
     if key in ["port", "workers"]:
         try: return int(value)
@@ -35,13 +33,14 @@ async def effective_config(set: list[str] = []):
         "api_key": "default-secret-000"
     }
 
-    # 2. config.development.yaml simulation
+    # 2. YAML layer (Overrides Defaults)
     config.update({"port": 8717, "workers": 4, "debug": True})
 
-    # 3. .env file simulation (Alias: NUM_WORKERS -> workers)
+    # 3. .env layer (Overrides YAML)
     config["workers"] = 8
 
-    # 4. OS Env vars (APP_* prefix)
+    # 4. OS Env vars (Overrides YAML/.env)
+    # This must be applied AFTER step 2 and 3 to ensure APP_PORT (8388) wins over 8717
     os_mapping = {
         "APP_PORT": "port",
         "APP_LOG_LEVEL": "log_level",
@@ -52,7 +51,8 @@ async def effective_config(set: list[str] = []):
         if val is not None:
             config[config_key] = coerce_type(config_key, val)
 
-    # 5. CLI Overrides (?set=key=value) (Highest Precedence)
+    # 5. CLI Overrides (Highest Precedence)
+    # This ensures ?set=debug=false overwrites the 'True' from step 2
     for pair in set:
         if "=" in pair:
             k, v = pair.split("=", 1)
